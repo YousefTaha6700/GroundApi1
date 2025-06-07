@@ -32,9 +32,9 @@ i18n.configure({
   api: {
     __: "t",
   },
-  reloadOnChange: true, // Added to reload translations on change
+  reloadOnChange: true,
 });
-
+console.log("Test");
 app.use(i18n.init);
 
 // Enable CORS
