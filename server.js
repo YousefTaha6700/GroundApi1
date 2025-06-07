@@ -34,7 +34,6 @@ i18n.configure({
   },
   reloadOnChange: true,
 });
-console.log("Test");
 app.use(i18n.init);
 
 // Enable CORS
