@@ -17,11 +17,13 @@ const {
   getResidentialLands,
   uploadLandImage,
   resizeImage,
+  getPendingLands,
 } = require("../services/landService");
 const auth = require("../services/authService");
 
 router.get("/myFavorites", auth.protect, getFavoriteLands);
 router.get("/:id/isFavorited", auth.protect, isLandFavorited);
+router.get("/pending", auth.protect, getPendingLands);
 
 router.post("/", auth.protect, addLand);
 router.get("/", getAllLands);
