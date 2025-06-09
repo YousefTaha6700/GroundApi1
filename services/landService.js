@@ -80,6 +80,13 @@ exports.getMyLands = asyncHandler(async (req, res) => {
 
   res.json(lands);
 });
+exports.getPendingLands = asyncHandler(async (req, res) => {
+  const lands = await Land.find({
+    status: "pending",
+  }).populate("owner", "name phone role");
+
+  res.json(lands);
+});
 exports.getResidentialLands = asyncHandler(async (req, res) => {
   const lands = await Land.find({
     isResidential: true,
