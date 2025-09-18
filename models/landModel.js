@@ -52,6 +52,8 @@ const landSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    longitude: Number,
+    latitude: Number,
   },
   { timestamps: true }
 );

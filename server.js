@@ -6,13 +6,20 @@ const rateLimit = require("express-rate-limit");
 const cors = require("cors");
 const helmet = require("helmet");
 const i18n = require("i18n");
+const http = require("http");
+const socketIO = require("socket.io");
+
 const sanitize = require("./middlewares/sanitizeMiddleware");
 
 dotenv.config({ path: "config.env" });
 const dbConnection = require("./config/database");
+
+// Routes
 const userRoute = require("./routes/userRoutes");
 const authRoutes = require("./routes/authRoutes");
 const landRoutes = require("./routes/landRoutes");
+const messageRoutes = require("./routes/messageRoutes"); // جديد
+
 const globalError = require("./middlewares/error_middleware");
 
 // Connect with db
@@ -20,6 +27,13 @@ dbConnection();
 
 // express app
 const app = express();
+const server = http.createServer(app);
+const io = socketIO(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
+});
 
 // i18n Configuration
 i18n.configure({
@@ -38,8 +52,6 @@ app.use(i18n.init);
 
 // Enable CORS
 app.use(cors());
-//app.options("*", cors());
-
 app.use(express.json({ limit: "100kb" }));
 app.use(express.static(path.join(__dirname, "uploads")));
 
@@ -68,13 +80,38 @@ app.use("/api", limiter);
 app.use("/api/v1/users", userRoute);
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/land", landRoutes);
+app.use("/api/v1/messages", messageRoutes); // جديد
 
 // Global error handling middleware
 app.use(globalError);
 
+// Socket.IO Events
+io.on("connection", (socket) => {
+  console.log("New client connected");
+
+  socket.on("sendMessage", async (data) => {
+    const { senderId, receiverId, message, timestamp } = data;
+
+    const Message = require("./models/Message"); // استدعاء الموديل
+    const newMessage = new Message({
+      senderId,
+      receiverId,
+      message,
+      timestamp,
+    });
+    await newMessage.save();
+
+    io.emit("receiveMessage", data);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("Client disconnected");
+  });
+});
+
 // Start the server
 const port = process.env.PORT || 8000;
-const server = app.listen(port, () => {
+server.listen(port, "0.0.0.0", () => {
   console.log(`Server running on port ${port}`);
 });
 
