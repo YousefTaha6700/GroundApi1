@@ -14,11 +14,15 @@ const sanitize = require("./middlewares/sanitizeMiddleware");
 dotenv.config({ path: "config.env" });
 const dbConnection = require("./config/database");
 
+// Models
+const User = require("./models/userModel");
+const Message = require("./models/messageModel");
+
 // Routes
 const userRoute = require("./routes/userRoutes");
 const authRoutes = require("./routes/authRoutes");
 const landRoutes = require("./routes/landRoutes");
-const messageRoutes = require("./routes/messageRoutes"); // جديد
+const messageRoutes = require("./routes/messageRoutes");
 
 const globalError = require("./middlewares/error_middleware");
 
@@ -80,19 +84,126 @@ app.use("/api", limiter);
 app.use("/api/v1/users", userRoute);
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/land", landRoutes);
-app.use("/api/v1/messages", messageRoutes); // جديد
+app.use("/api/v1/messages", messageRoutes);
 
-// Global error handling middleware
+// ========== Extra Endpoints ========== //
+
+// 1. Get admin user info endpoint
+app.get("/api/v1/users/admin", async (req, res) => {
+  try {
+    const admin = await User.findOne({ role: "admin" });
+
+    if (!admin) {
+      return res.status(404).json({
+        status: "fail",
+        message: "Admin not found",
+      });
+    }
+
+    res.json({
+      status: "success",
+      data: {
+        id: admin._id,
+        name: admin.name || admin.firstName + " " + admin.lastName,
+        email: admin.email,
+        profileImage: admin.profileImage || null,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching admin info:", error);
+    res.status(500).json({
+      status: "fail",
+      message: "Failed to fetch admin info",
+    });
+  }
+});
+
+// 2. Get chat list for admin endpoint
+app.get("/api/v1/messages/chats", async (req, res) => {
+  try {
+    const adminId = "6806f579159f0038ddbd74dc"; // Replace with actual admin ID
+
+    const messages = await Message.find({ receiverId: adminId })
+      .populate("senderId", "name email profileImage")
+      .sort({ timestamp: -1 });
+
+    const chatMap = new Map();
+
+    messages.forEach((message) => {
+      const senderId = message.senderId._id.toString();
+      if (!chatMap.has(senderId)) {
+        chatMap.set(senderId, {
+          userId: senderId,
+          userName: message.senderId.name || "User",
+          userEmail: message.senderId.email,
+          userImage: message.senderId.profileImage,
+          lastMessage: message.message,
+          lastMessageTime: message.timestamp,
+          unreadCount: 0,
+        });
+      }
+    });
+
+    const chats = Array.from(chatMap.values());
+
+    res.json({
+      status: "success",
+      chats: chats,
+    });
+  } catch (error) {
+    console.error("Error fetching chat list:", error);
+    res.status(500).json({
+      status: "fail",
+      message: "Failed to fetch chat list",
+    });
+  }
+});
+
+// 3. Send message endpoint
+app.post("/api/v1/messages/send", async (req, res) => {
+  const { senderId, receiverId, message } = req.body;
+
+  try {
+    const newMessage = new Message({
+      senderId,
+      receiverId,
+      message,
+      timestamp: new Date(),
+    });
+
+    await newMessage.save();
+
+    // Emit to socket for real-time delivery
+    io.emit("receiveMessage", {
+      senderId,
+      receiverId,
+      message,
+      timestamp: newMessage.timestamp,
+    });
+
+    res.json({
+      status: "success",
+      message: newMessage,
+    });
+  } catch (error) {
+    console.error("Error sending message:", error);
+    res.status(500).json({
+      status: "fail",
+      message: "Failed to send message",
+    });
+  }
+});
+
+// ========== Global error handling ==========
 app.use(globalError);
 
-// Socket.IO Events
+// ========== Socket.IO ==========
 io.on("connection", (socket) => {
   console.log("New client connected");
 
   socket.on("sendMessage", async (data) => {
     const { senderId, receiverId, message, timestamp } = data;
 
-    const Message = require("./models/Message"); // استدعاء الموديل
     const newMessage = new Message({
       senderId,
       receiverId,
@@ -109,7 +220,7 @@ io.on("connection", (socket) => {
   });
 });
 
-// Start the server
+// ========== Server start ==========
 const port = process.env.PORT || 8000;
 server.listen(port, "0.0.0.0", () => {
   console.log(`Server running on port ${port}`);
