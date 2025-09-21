@@ -219,7 +219,10 @@ io.on("connection", (socket) => {
     console.log("Client disconnected");
   });
 });
-
+//Test endpoint
+// app.get("/", (req, res) => {
+//   res.json({ message: "API is running...." });
+// });
 // ========== Server start ==========
 const port = process.env.PORT || 8000;
 server.listen(port, "0.0.0.0", () => {
