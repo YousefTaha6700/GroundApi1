@@ -6,6 +6,8 @@ const { uploadMixOfImages } = require("../middlewares/uploadImageMiddleware");
 const { v4: uuidv4 } = require("uuid");
 const sharp = require("sharp");
 
+const admin = require("../config/firebase");
+
 //Upload Mix of images
 exports.uploadLandImage = uploadMixOfImages([{ name: "images", maxCount: 5 }]);
 // Resize user image
@@ -80,6 +82,7 @@ exports.getMyLands = asyncHandler(async (req, res) => {
 
   res.json(lands);
 });
+
 exports.getPendingLands = asyncHandler(async (req, res) => {
   const lands = await Land.find({
     status: "pending",
@@ -87,6 +90,7 @@ exports.getPendingLands = asyncHandler(async (req, res) => {
 
   res.json(lands);
 });
+
 exports.getResidentialLands = asyncHandler(async (req, res) => {
   const lands = await Land.find({
     isResidential: true,
@@ -247,6 +251,7 @@ exports.getFavoriteLands = asyncHandler(async (req, res) => {
 
   res.json({ result: activeFavoriteLands.length, data: activeFavoriteLands });
 });
+
 exports.isLandFavorited = asyncHandler(async (req, res) => {
   const userId = req.user._id;
   const landId = req.params.id;
@@ -271,14 +276,36 @@ exports.approveLand = asyncHandler(async (req, res, next) => {
     return next(new ApiError(req.t("not_authorized_approve"), 403));
   }
 
-  const land = await Land.findById(id);
+  const land = await Land.findById(id).populate("owner");
   if (!land) return next(new ApiError(req.t("land_not_found"), 404));
 
   land.status = "approved";
   land.approvedBy = adminId;
   land.approvalDate = new Date();
-
   await land.save();
+
+  if (land.owner && land.owner.fcmToken) {
+    const message = {
+      token: land.owner.fcmToken,
+      notification: {
+        title: req.t("land_approved_title") || "تمت الموافقة على أرضك ✅",
+        body:
+          req.t("land_approved_message") ||
+          `الأرض "${land.title || ""}" تمت الموافقة عليها ويمكن عرضها الآن.`,
+      },
+      data: {
+        type: "land_approved",
+        landId: land._id.toString(),
+      },
+    };
+
+    try {
+      await admin.messaging().send(message);
+      console.log("Land approval notification sent successfully");
+    } catch (error) {
+      console.error("Error sending land approval notification:", error);
+    }
+  }
 
   res.json({ message: req.t("land_approved"), land });
 });

@@ -18,6 +18,7 @@ const dbConnection = require("./config/database");
 const User = require("./models/userModel");
 const Message = require("./models/messageModel");
 
+const admin = require("../config/firebase");
 // Routes
 const userRoute = require("./routes/userRoutes");
 const authRoutes = require("./routes/authRoutes");
@@ -204,21 +205,57 @@ io.on("connection", (socket) => {
   socket.on("sendMessage", async (data) => {
     const { senderId, receiverId, message, timestamp } = data;
 
-    const newMessage = new Message({
-      senderId,
-      receiverId,
-      message,
-      timestamp,
-    });
-    await newMessage.save();
+    try {
+      // 1. حفظ الرسالة في قاعدة البيانات
+      const newMessage = new Message({
+        senderId,
+        receiverId,
+        message,
+        timestamp,
+      });
+      await newMessage.save();
 
-    io.emit("receiveMessage", data);
+      // 2. إرسال الرسالة فقط للمرسل والمستقبل
+      io.to(senderId).emit("receiveMessage", data);
+      io.to(receiverId).emit("receiveMessage", data);
+
+      // 3. جلب الـ receiver لمعرفة الـ fcmToken
+      const receiver = await User.findById(receiverId);
+      const sender = await User.findById(senderId);
+
+      if (receiver && receiver.fcmToken) {
+        const notification = {
+          token: receiver.fcmToken,
+          notification: {
+            title: sender?.name || "رسالة جديدة 📩",
+            body:
+              message.length > 50 ? message.substring(0, 50) + "..." : message,
+          },
+          data: {
+            type: "new_message",
+            senderId: senderId.toString(),
+            receiverId: receiverId.toString(),
+            messageId: newMessage._id.toString(),
+          },
+        };
+
+        try {
+          await admin.messaging().send(notification);
+          console.log("Push notification sent ✅");
+        } catch (err) {
+          console.error("Error sending FCM notification:", err);
+        }
+      }
+    } catch (err) {
+      console.error("Error saving or sending message:", err);
+    }
   });
 
   socket.on("disconnect", () => {
     console.log("Client disconnected");
   });
 });
+
 //Test endpoint
 // app.get("/", (req, res) => {
 //   res.json({ message: "API is running...." });

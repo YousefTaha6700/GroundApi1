@@ -85,6 +85,7 @@ const userSchema = new mongoose.Schema(
         ref: "Land",
       },
     ],
+    fcmToken: { type: String, default: null },
   },
   { timestamps: true }
 );

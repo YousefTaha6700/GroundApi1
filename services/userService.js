@@ -18,6 +18,8 @@ const factory = require("./handlersFactory");
 const { uploadSingleImage } = require("../middlewares/uploadImageMiddleware");
 const createToken = require("../utils/createToken");
 
+const admin = require("../config/firebase");
+
 //Upload single image
 exports.uploadUserImage = uploadSingleImage("profileImage");
 // Resize user image
@@ -126,6 +128,7 @@ exports.deactivateUser = asyncHandler(async (req, res, next) => {
 // Approve an owner account by Admin
 // @route PATCH /api/v1/users/approve-owner/:id
 // @access Admin only
+
 exports.approveOwnerAccount = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
 
@@ -141,6 +144,29 @@ exports.approveOwnerAccount = asyncHandler(async (req, res, next) => {
 
   user.isApprovedByAdmin = true;
   await user.save();
+
+  if (user.fcmToken) {
+    const message = {
+      token: user.fcmToken,
+      notification: {
+        title: req.t("account_approved_title") || "تمت الموافقة على حسابك 🎉",
+        body:
+          req.t("account_approved_message") ||
+          "الآن يمكنك استخدام حسابك بشكل كامل.",
+      },
+      data: {
+        type: "account_approved",
+        userId: user._id.toString(),
+      },
+    };
+
+    try {
+      await admin.messaging().send(message);
+      console.log("Notification sent successfully");
+    } catch (error) {
+      console.error("Error sending notification:", error);
+    }
+  }
 
   res.status(200).json({
     success: true,
@@ -259,5 +285,33 @@ exports.reactivateUser = asyncHandler(async (req, res, next) => {
   res.status(200).json({
     status: "success",
     message: req.t("user_reactivated_successfully"),
+  });
+});
+
+// @desc Save/Update FCM token
+// @route POST /api/v1/user/save-fcm-token
+// @access Private
+exports.saveFcmToken = asyncHandler(async (req, res, next) => {
+  const userId = req.user._id; // لازم يكون logged in
+  const { fcmToken } = req.body;
+
+  if (!fcmToken) {
+    return next(new ApiError(req.t("fcm_token_required"), 400));
+  }
+
+  const user = await userModel.findByIdAndUpdate(
+    userId,
+    { fcmToken },
+    { new: true }
+  );
+
+  if (!user) {
+    return next(new ApiError(req.t("user_not_found"), 404));
+  }
+
+  res.status(200).json({
+    success: true,
+    message: req.t("fcm_token_saved"),
+    data: user,
   });
 });

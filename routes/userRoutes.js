@@ -30,12 +30,18 @@ const {
   updateLoggedUserPassword,
   updateLoggedUserData,
   deactivateLoggedUser,
+  saveFcmToken,
 } = require("../services/userService");
 const auth = require("../services/authService");
 
 router.use(auth.protect);
+router.post("/update-fcm-token", saveFcmToken);
 router.get("/getMe", getLoggedUserData, getUser);
-router.put("/changeMyPassword", changeLoggedUserPasswordValidator, updateLoggedUserPassword);
+router.put(
+  "/changeMyPassword",
+  changeLoggedUserPasswordValidator,
+  updateLoggedUserPassword
+);
 router.put(
   "/updateMyData",
   uploadUserImage,
