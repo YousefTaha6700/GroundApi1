@@ -309,6 +309,30 @@ exports.saveFcmToken = asyncHandler(async (req, res, next) => {
     return next(new ApiError(req.t("user_not_found"), 404));
   }
 
+  // 🔔 إرسال إشعار تجريبي بعد حفظ FCM token
+  if (fcmToken) {
+    const notification = {
+      token: fcmToken,
+      notification: {
+        title: req.t("notifications_enabled_title") || "تم تفعيل الإشعارات 🎉",
+        body:
+          req.t("notifications_enabled_message") ||
+          "يمكنك الآن استلام الإشعارات من التطبيق.",
+      },
+      data: {
+        type: "test_notification",
+        userId: userId.toString(),
+      },
+    };
+
+    try {
+      await admin.messaging().send(notification);
+      console.log("Test push notification sent ✅");
+    } catch (err) {
+      console.error("Error sending test notification:", err);
+    }
+  }
+
   res.status(200).json({
     success: true,
     message: req.t("fcm_token_saved"),
