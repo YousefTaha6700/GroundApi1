@@ -199,6 +199,8 @@ app.post("/api/v1/messages/send", async (req, res) => {
 app.use(globalError);
 
 // ========== Socket.IO ==========
+// ... الكود السابق كما هو حتى socket.io
+
 io.on("connection", (socket) => {
   console.log("New client connected");
 
@@ -215,37 +217,18 @@ io.on("connection", (socket) => {
       });
       await newMessage.save();
 
-      // 2. إرسال الرسالة فقط للمرسل والمستقبل
-      io.to(senderId).emit("receiveMessage", data);
-      io.to(receiverId).emit("receiveMessage", data);
+      // 2. إرسال الرسالة عبر الـ socket للمرسل والمستقبل
+      io.to(senderId).emit("receiveMessage", {
+        ...data,
+        messageId: newMessage._id.toString(),
+      });
+      io.to(receiverId).emit("receiveMessage", {
+        ...data,
+        messageId: newMessage._id.toString(),
+      });
 
-      // 3. جلب الـ receiver لمعرفة الـ fcmToken
-      const receiver = await User.findById(receiverId);
-      const sender = await User.findById(senderId);
-
-      if (receiver && receiver.fcmToken) {
-        const notification = {
-          token: receiver.fcmToken,
-          notification: {
-            title: sender?.name || "رسالة جديدة 📩",
-            body:
-              message.length > 50 ? message.substring(0, 50) + "..." : message,
-          },
-          data: {
-            type: "new_message",
-            senderId: senderId.toString(),
-            receiverId: receiverId.toString(),
-            messageId: newMessage._id.toString(),
-          },
-        };
-
-        try {
-          await admin.messaging().send(notification);
-          console.log("Push notification sent ✅");
-        } catch (err) {
-          console.error("Error sending FCM notification:", err);
-        }
-      }
+      // 3. إرسال إشعار FCM للمستقبل (وظيفة مستقلة)
+      sendFcmNotification(receiverId, senderId, message, newMessage._id);
     } catch (err) {
       console.error("Error saving or sending message:", err);
     }
@@ -255,6 +238,40 @@ io.on("connection", (socket) => {
     console.log("Client disconnected");
   });
 });
+
+// ========== دالة مستقلة لإرسال FCM ==========
+async function sendFcmNotification(receiverId, senderId, message, messageId) {
+  try {
+    const receiver = await User.findById(receiverId);
+    const sender = await User.findById(senderId);
+
+    if (!receiver?.fcmToken) {
+      console.log("⚠️ No FCM token found for receiver:", receiverId);
+      return;
+    }
+
+    const notification = {
+      token: receiver.fcmToken,
+      notification: {
+        title: sender?.name || "رسالة جديدة 📩",
+        body: message.length > 50 ? message.substring(0, 50) + "..." : message,
+      },
+      data: {
+        type: "new_message",
+        senderId: senderId.toString(),
+        receiverId: receiverId.toString(),
+        messageId: messageId.toString(),
+        senderName: sender?.name || "User",
+        senderEmail: sender?.email || "",
+      },
+    };
+
+    const response = await admin.messaging().send(notification);
+    console.log("✅ Push notification sent successfully:", response);
+  } catch (err) {
+    console.error("❌ Error sending FCM notification:", err);
+  }
+}
 
 //Test endpoint
 // app.get("/", (req, res) => {
