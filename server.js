@@ -18,7 +18,9 @@ const dbConnection = require("./config/database");
 const User = require("./models/userModel");
 const Message = require("./models/messageModel");
 
+// Firebase
 const admin = require("./config/firebase.js");
+
 // Routes
 const userRoute = require("./routes/userRoutes");
 const authRoutes = require("./routes/authRoutes");
@@ -27,17 +29,14 @@ const messageRoutes = require("./routes/messageRoutes");
 
 const globalError = require("./middlewares/error_middleware");
 
-// Connect with db
+// Connect to DB
 dbConnection();
 
-// express app
+// Express app
 const app = express();
 const server = http.createServer(app);
 const io = socketIO(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"],
-  },
+  cors: { origin: "*", methods: ["GET", "POST"] },
 });
 
 // i18n Configuration
@@ -48,182 +47,132 @@ i18n.configure({
   queryParameter: "lang",
   autoReload: true,
   retryInDefaultLocale: true,
-  api: {
-    __: "t",
-  },
+  api: { __: "t" },
   reloadOnChange: true,
 });
 app.use(i18n.init);
 
-// Enable CORS
+// Middleware
 app.use(cors());
 app.use(express.json({ limit: "100kb" }));
 app.use(express.static(path.join(__dirname, "uploads")));
+app.use(sanitize);
+app.use(helmet());
 
 if (process.env.NODE_ENV === "development") {
   app.use(morgan("dev"));
   console.log(`mode: ${process.env.NODE_ENV}`);
 }
 
-app.use(sanitize);
-app.use(helmet());
-
-// Rate Limiter with i18n message
+// Rate limiter
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 100,
-  message: (req, res) => {
-    return {
-      status: "fail",
-      message: req.t("too_many_requests"),
-    };
-  },
+  message: (req) => ({
+    status: "fail",
+    message: req.t("too_many_requests"),
+  }),
 });
 app.use("/api", limiter);
 
-// Mount Routes
+// Routes
 app.use("/api/v1/users", userRoute);
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/land", landRoutes);
 app.use("/api/v1/messages", messageRoutes);
 
-// ========== Extra Endpoints ========== //
-
-// 1. Get admin user info endpoint
+// Extra endpoints
 app.get("/api/v1/users/admin", async (req, res) => {
   try {
-    const admin = await User.findOne({ role: "admin" });
-
-    if (!admin) {
-      return res.status(404).json({
-        status: "fail",
-        message: "Admin not found",
-      });
-    }
+    const adminUser = await User.findOne({ role: "admin" });
+    if (!adminUser)
+      return res
+        .status(404)
+        .json({ status: "fail", message: "Admin not found" });
 
     res.json({
       status: "success",
       data: {
-        id: admin._id,
-        name: admin.name || admin.firstName + " " + admin.lastName,
-        email: admin.email,
-        profileImage: admin.profileImage || null,
+        id: adminUser._id,
+        name: adminUser.name || adminUser.firstName + " " + adminUser.lastName,
+        email: adminUser.email,
+        profileImage: adminUser.profileImage || null,
       },
     });
-  } catch (error) {
-    console.error("Error fetching admin info:", error);
-    res.status(500).json({
-      status: "fail",
-      message: "Failed to fetch admin info",
-    });
+  } catch (err) {
+    console.error(err);
+    res
+      .status(500)
+      .json({ status: "fail", message: "Failed to fetch admin info" });
   }
 });
 
-// 2. Get chat list for admin endpoint
+// Chat list for admin
 app.get("/api/v1/messages/chats", async (req, res) => {
   try {
-    const adminId = "6806f579159f0038ddbd74dc"; // Replace with actual admin ID
-
+    const adminId = "6806f579159f0038ddbd74dc"; // Replace with your admin ID
     const messages = await Message.find({ receiverId: adminId })
       .populate("senderId", "name email profileImage")
       .sort({ timestamp: -1 });
 
     const chatMap = new Map();
-
-    messages.forEach((message) => {
-      const senderId = message.senderId._id.toString();
+    messages.forEach((msg) => {
+      const senderId = msg.senderId._id.toString();
       if (!chatMap.has(senderId)) {
         chatMap.set(senderId, {
           userId: senderId,
-          userName: message.senderId.name || "User",
-          userEmail: message.senderId.email,
-          userImage: message.senderId.profileImage,
-          lastMessage: message.message,
-          lastMessageTime: message.timestamp,
+          userName: msg.senderId.name || "User",
+          userEmail: msg.senderId.email,
+          userImage: msg.senderId.profileImage,
+          lastMessage: msg.message,
+          lastMessageTime: msg.timestamp,
           unreadCount: 0,
         });
       }
     });
 
-    const chats = Array.from(chatMap.values());
-
-    res.json({
-      status: "success",
-      chats: chats,
-    });
-  } catch (error) {
-    console.error("Error fetching chat list:", error);
-    res.status(500).json({
-      status: "fail",
-      message: "Failed to fetch chat list",
-    });
+    res.json({ status: "success", chats: Array.from(chatMap.values()) });
+  } catch (err) {
+    console.error(err);
+    res
+      .status(500)
+      .json({ status: "fail", message: "Failed to fetch chat list" });
   }
 });
 
-// 3. Send message endpoint
-app.post("/api/v1/messages/send", async (req, res) => {
-  const { senderId, receiverId, message } = req.body;
-
-  try {
-    const newMessage = new Message({
-      senderId,
-      receiverId,
-      message,
-      timestamp: new Date(),
-    });
-
-    await newMessage.save();
-
-    // Emit to socket for real-time delivery
-    io.emit("receiveMessage", {
-      senderId,
-      receiverId,
-      message,
-      timestamp: newMessage.timestamp,
-    });
-
-    res.json({
-      status: "success",
-      message: newMessage,
-    });
-  } catch (error) {
-    console.error("Error sending message:", error);
-    res.status(500).json({
-      status: "fail",
-      message: "Failed to send message",
-    });
-  }
-});
-
-// ========== Global error handling ==========
-app.use(globalError);
-
-// ========== Socket.IO ==========
+// Socket.IO
 io.on("connection", (socket) => {
-  console.log("New client connected");
+  console.log("New client connected:", socket.id);
+
+  // Join user's room for private messages
+  const userId = socket.handshake.query.userId;
+  if (userId) {
+    socket.join(userId);
+    console.log(`User ${userId} joined room ${userId}`);
+  }
 
   socket.on("sendMessage", async (data) => {
     const { senderId, receiverId, message, timestamp } = data;
 
     try {
-      // 1. حفظ الرسالة في قاعدة البيانات
+      // Save message
       const newMessage = new Message({
         senderId,
         receiverId,
         message,
-        timestamp,
+        timestamp: timestamp || new Date(),
       });
       await newMessage.save();
 
-      // 2. إرسال الرسالة فقط للمرسل والمستقبل
+      // Emit to sender and receiver
       io.to(senderId).emit("receiveMessage", data);
       io.to(receiverId).emit("receiveMessage", data);
 
-      // 3. جلب الـ receiver لمعرفة الـ fcmToken
+      // Get FCM tokens
       const receiver = await User.findById(receiverId);
       const sender = await User.findById(senderId);
 
-      if (receiver && receiver.fcmToken) {
+      if (receiver?.fcmToken) {
         const notification = {
           token: receiver.fcmToken,
           notification: {
@@ -236,31 +185,33 @@ io.on("connection", (socket) => {
             senderId: senderId.toString(),
             receiverId: receiverId.toString(),
             messageId: newMessage._id.toString(),
+            senderName: sender?.name || "User",
+            senderEmail: sender?.email || "",
           },
         };
-
         try {
-          await admin.messaging().send(notification);
-          console.log("Push notification sent ✅");
+          const response = await admin.messaging().send(notification);
+          console.log("✅ Push notification sent:", response);
         } catch (err) {
-          console.error("Error sending FCM notification:", err);
+          console.error("❌ Error sending FCM notification:", err);
         }
+      } else {
+        console.log("⚠️ No FCM token for receiver:", receiverId);
       }
     } catch (err) {
-      console.error("Error saving or sending message:", err);
+      console.error("❌ Error saving/sending message:", err);
     }
   });
 
   socket.on("disconnect", () => {
-    console.log("Client disconnected");
+    console.log("Client disconnected:", socket.id);
   });
 });
 
-//Test endpoint
-// app.get("/", (req, res) => {
-//   res.json({ message: "API is running...." });
-// });
-// ========== Server start ==========
+// Global error
+app.use(globalError);
+
+// Server start
 const port = process.env.PORT || 8000;
 server.listen(port, "0.0.0.0", () => {
   console.log(`Server running on port ${port}`);
@@ -268,15 +219,12 @@ server.listen(port, "0.0.0.0", () => {
 
 server.on("error", (err) => {
   if (err.code === "EADDRINUSE") {
-    console.error(`Port ${port} is already in use. Choose another port.`);
+    console.error(`Port ${port} is already in use.`);
     process.exit(1);
   }
 });
 
 process.on("unhandledRejection", (err) => {
-  console.error(`unhandledRejection errors: ${err.name} | ${err.message}`);
-  server.close(() => {
-    console.error("Shutting down....");
-    process.exit(1);
-  });
+  console.error(`Unhandled Rejection: ${err?.name} | ${err?.message}`);
+  server.close(() => process.exit(1));
 });
