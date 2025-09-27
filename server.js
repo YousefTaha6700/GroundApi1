@@ -92,9 +92,9 @@ app.use("/api/v1/messages", messageRoutes);
 // 1. Get admin user info endpoint
 app.get("/api/v1/users/admin", async (req, res) => {
   try {
-    const admin = await User.findOne({ role: "admin" });
+    const adminUser = await User.findOne({ role: "admin" });
 
-    if (!admin) {
+    if (!adminUser) {
       return res.status(404).json({
         status: "fail",
         message: "Admin not found",
@@ -104,10 +104,10 @@ app.get("/api/v1/users/admin", async (req, res) => {
     res.json({
       status: "success",
       data: {
-        id: admin._id,
-        name: admin.name || admin.firstName + " " + admin.lastName,
-        email: admin.email,
-        profileImage: admin.profileImage || null,
+        id: adminUser._id,
+        name: adminUser.name || adminUser.firstName + " " + adminUser.lastName,
+        email: adminUser.email,
+        profileImage: adminUser.profileImage || null,
       },
     });
   } catch (error) {
@@ -160,28 +160,50 @@ app.get("/api/v1/messages/chats", async (req, res) => {
   }
 });
 
+// ========== دالة مشتركة للتعامل مع الرسائل ========== //
+async function handleNewMessage(
+  senderId,
+  receiverId,
+  message,
+  timestamp = new Date()
+) {
+  // 1. حفظ الرسالة
+  const newMessage = new Message({
+    senderId,
+    receiverId,
+    message,
+    timestamp,
+  });
+  await newMessage.save();
+
+  // 2. إرسالها عبر socket
+  io.to(senderId.toString()).emit("receiveMessage", {
+    senderId,
+    receiverId,
+    message,
+    timestamp,
+    messageId: newMessage._id.toString(),
+  });
+  io.to(receiverId.toString()).emit("receiveMessage", {
+    senderId,
+    receiverId,
+    message,
+    timestamp,
+    messageId: newMessage._id.toString(),
+  });
+
+  // 3. إرسال إشعار FCM
+  await sendFcmNotification(receiverId, senderId, message, newMessage._id);
+
+  return newMessage;
+}
+
 // 3. Send message endpoint
 app.post("/api/v1/messages/send", async (req, res) => {
   const { senderId, receiverId, message } = req.body;
 
   try {
-    const newMessage = new Message({
-      senderId,
-      receiverId,
-      message,
-      timestamp: new Date(),
-    });
-
-    await newMessage.save();
-
-    // Emit to socket for real-time delivery
-    io.emit("receiveMessage", {
-      senderId,
-      receiverId,
-      message,
-      timestamp: newMessage.timestamp,
-    });
-
+    const newMessage = await handleNewMessage(senderId, receiverId, message);
     res.json({
       status: "success",
       message: newMessage,
@@ -195,42 +217,16 @@ app.post("/api/v1/messages/send", async (req, res) => {
   }
 });
 
-// ========== Global error handling ==========
-app.use(globalError);
-
-// ========== Socket.IO ==========
-// ... الكود السابق كما هو حتى socket.io
-
+// ========== Socket.IO ========== //
 io.on("connection", (socket) => {
   console.log("New client connected");
 
   socket.on("sendMessage", async (data) => {
     const { senderId, receiverId, message, timestamp } = data;
-
     try {
-      // 1. حفظ الرسالة في قاعدة البيانات
-      const newMessage = new Message({
-        senderId,
-        receiverId,
-        message,
-        timestamp,
-      });
-      await newMessage.save();
-
-      // 2. إرسال الرسالة عبر الـ socket للمرسل والمستقبل
-      io.to(senderId).emit("receiveMessage", {
-        ...data,
-        messageId: newMessage._id.toString(),
-      });
-      io.to(receiverId).emit("receiveMessage", {
-        ...data,
-        messageId: newMessage._id.toString(),
-      });
-
-      // 3. إرسال إشعار FCM للمستقبل (وظيفة مستقلة)
-      sendFcmNotification(receiverId, senderId, message, newMessage._id);
+      await handleNewMessage(senderId, receiverId, message, timestamp);
     } catch (err) {
-      console.error("Error saving or sending message:", err);
+      console.error("Error handling socket message:", err);
     }
   });
 
@@ -239,7 +235,7 @@ io.on("connection", (socket) => {
   });
 });
 
-// ========== دالة مستقلة لإرسال FCM ==========
+// ========== دالة مستقلة لإرسال FCM ========== //
 async function sendFcmNotification(receiverId, senderId, message, messageId) {
   try {
     const receiver = await User.findById(receiverId);
@@ -273,11 +269,10 @@ async function sendFcmNotification(receiverId, senderId, message, messageId) {
   }
 }
 
-//Test endpoint
-// app.get("/", (req, res) => {
-//   res.json({ message: "API is running...." });
-// });
-// ========== Server start ==========
+// ========== Global error handling ========== //
+app.use(globalError);
+
+// ========== Server start ========== //
 const port = process.env.PORT || 8000;
 server.listen(port, "0.0.0.0", () => {
   console.log(`Server running on port ${port}`);
