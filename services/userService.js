@@ -18,7 +18,7 @@ const factory = require("./handlersFactory");
 const { uploadSingleImage } = require("../middlewares/uploadImageMiddleware");
 const createToken = require("../utils/createToken");
 
-const admin = require("../config/firebase");
+const admin = require("../config/firebase.js");
 
 //Upload single image
 exports.uploadUserImage = uploadSingleImage("profileImage");

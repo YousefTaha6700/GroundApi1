@@ -18,7 +18,7 @@ const dbConnection = require("./config/database");
 const User = require("./models/userModel");
 const Message = require("./models/messageModel");
 
-const admin = require("../config/firebase");
+const admin = require("../config/firebase.js");
 // Routes
 const userRoute = require("./routes/userRoutes");
 const authRoutes = require("./routes/authRoutes");

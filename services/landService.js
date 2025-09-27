@@ -6,7 +6,7 @@ const { uploadMixOfImages } = require("../middlewares/uploadImageMiddleware");
 const { v4: uuidv4 } = require("uuid");
 const sharp = require("sharp");
 
-const admin = require("../config/firebase");
+const admin = require("../config/firebase.js");
 
 //Upload Mix of images
 exports.uploadLandImage = uploadMixOfImages([{ name: "images", maxCount: 5 }]);
