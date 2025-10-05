@@ -31,6 +31,8 @@ const {
   updateLoggedUserData,
   deactivateLoggedUser,
   saveFcmToken,
+  getUnapprovedCompanies,
+  getUsersWithLands,
 } = require("../services/userService");
 const auth = require("../services/authService");
 
@@ -93,6 +95,19 @@ router.get(
   auth.allowedTo("admin"),
   approveOwnerValidator,
   approveOwnerAccount
+);
+router.get(
+  "/unapproved",
+  auth.protect,
+  auth.allowedTo("admin"),
+  getUnapprovedCompanies
+);
+
+router.get(
+  "/with-lands",
+  auth.protect,
+  auth.allowedTo("admin"),
+  getUsersWithLands
 );
 
 module.exports = router;

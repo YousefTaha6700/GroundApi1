@@ -23,7 +23,7 @@ const auth = require("../services/authService");
 
 router.get("/myFavorites", auth.protect, getFavoriteLands);
 router.get("/:id/isFavorited", auth.protect, isLandFavorited);
-router.get("/pending", auth.protect, getPendingLands);
+//router.get("/pending", auth.protect, getPendingLands);
 
 router.post("/", auth.protect, addLand);
 router.get("/", getAllLands);
@@ -53,5 +53,7 @@ router.put(
   landValidator,
   approveLand
 );
+
+router.get("/pending", auth.protect, auth.allowedTo("admin"), getPendingLands);
 
 module.exports = router;

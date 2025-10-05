@@ -339,3 +339,34 @@ exports.saveFcmToken = asyncHandler(async (req, res, next) => {
     data: user,
   });
 });
+
+// @desc   Get all unapproved company accounts
+// @route  GET /api/v1/users/unapproved
+// @access Admin only
+exports.getUnapprovedCompanies = asyncHandler(async (req, res, next) => {
+  const unapprovedUsers = await userModel.find({
+    role: "company",
+    isApprovedByAdmin: false,
+  });
+
+  res.status(200).json({
+    success: true,
+    results: unapprovedUsers.length,
+    data: unapprovedUsers,
+  });
+});
+
+// @desc   Get all users who own lands
+// @route  GET /api/v1/users/with-lands
+// @access Admin
+exports.getUsersWithLands = asyncHandler(async (req, res, next) => {
+  const ownerIds = await Land.distinct("owner");
+
+  const users = await User.find({ _id: { $in: ownerIds } });
+
+  res.status(200).json({
+    success: true,
+    results: users.length,
+    data: users,
+  });
+});
