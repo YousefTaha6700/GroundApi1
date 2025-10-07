@@ -33,6 +33,7 @@ const {
   saveFcmToken,
   getUnapprovedCompanies,
   getUsersWithLands,
+  getAllCompanies,
 } = require("../services/userService");
 const auth = require("../services/authService");
 
@@ -84,7 +85,7 @@ router.get(
 );
 
 router.get(
-  "/unapproved",
+  "/companiesUnapproved",
   auth.protect,
   auth.allowedTo("admin"),
   getUnapprovedCompanies
@@ -97,12 +98,6 @@ router.get(
   getAllCompanies
 );
 
-router.get(
-  "/companies/unapproved",
-  auth.protect,
-  auth.allowedTo("admin"),
-  getUnapprovedCompanies
-);
 // Route to handle a single user by ID
 router
   .route("/:id")
