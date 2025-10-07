@@ -362,7 +362,7 @@ exports.getUnapprovedCompanies = asyncHandler(async (req, res, next) => {
 exports.getUsersWithLands = asyncHandler(async (req, res, next) => {
   const ownerIds = await Land.distinct("owner");
 
-  const users = await User.find({ _id: { $in: ownerIds } });
+  const users = await userModel.find({ _id: { $in: ownerIds } });
 
   res.status(200).json({
     success: true,
