@@ -336,7 +336,7 @@ exports.saveFcmToken = asyncHandler(async (req, res, next) => {
   res.status(200).json({
     success: true,
     message: req.t("fcm_token_saved"),
-    data: user,
+    data: sanitizeUser(user),
   });
 });
 
@@ -352,7 +352,7 @@ exports.getUnapprovedCompanies = asyncHandler(async (req, res, next) => {
   res.status(200).json({
     success: true,
     results: unapprovedUsers.length,
-    data: unapprovedUsers,
+    data: sanitizeUser(unapprovedUsers),
   });
 });
 
@@ -367,7 +367,7 @@ exports.getUsersWithLands = asyncHandler(async (req, res, next) => {
   res.status(200).json({
     success: true,
     results: users.length,
-    data: users,
+    data: sanitizeUser(users),
   });
 });
 
@@ -380,22 +380,6 @@ exports.getAllCompanies = asyncHandler(async (req, res, next) => {
   res.status(200).json({
     success: true,
     results: companies.length,
-    data: companies,
-  });
-});
-
-// @desc   Get all companies
-// @route  GET /api/v1/users/companiesUnapproved
-// @access Admin
-exports.getUnapprovedCompanies = asyncHandler(async (req, res, next) => {
-  const companies = await userModel.find({
-    role: "company",
-    isApprovedByAdmin: false,
-  });
-
-  res.status(200).json({
-    success: true,
-    results: companies.length,
-    data: companies,
+    data: sanitizeUser(companies),
   });
 });
