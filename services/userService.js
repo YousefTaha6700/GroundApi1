@@ -370,3 +370,32 @@ exports.getUsersWithLands = asyncHandler(async (req, res, next) => {
     data: users,
   });
 });
+
+// @desc   Get all companies
+// @route  GET /api/v1/users/companies
+// @access Admin
+exports.getAllCompanies = asyncHandler(async (req, res, next) => {
+  const companies = await userModel.find({ role: "company" });
+
+  res.status(200).json({
+    success: true,
+    results: companies.length,
+    data: companies,
+  });
+});
+
+// @desc   Get all companies
+// @route  GET /api/v1/users/companiesUnapproved
+// @access Admin
+exports.getUnapprovedCompanies = asyncHandler(async (req, res, next) => {
+  const companies = await userModel.find({
+    role: "company",
+    isApprovedByAdmin: false,
+  });
+
+  res.status(200).json({
+    success: true,
+    results: companies.length,
+    data: companies,
+  });
+});

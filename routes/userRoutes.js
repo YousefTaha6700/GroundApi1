@@ -89,6 +89,20 @@ router.get(
   auth.allowedTo("admin"),
   getUnapprovedCompanies
 );
+
+router.get(
+  "/companies",
+  auth.protect,
+  auth.allowedTo("admin"),
+  getAllCompanies
+);
+
+router.get(
+  "/companies/unapproved",
+  auth.protect,
+  auth.allowedTo("admin"),
+  getUnapprovedCompanies
+);
 // Route to handle a single user by ID
 router
   .route("/:id")
