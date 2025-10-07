@@ -352,7 +352,7 @@ exports.getUnapprovedCompanies = asyncHandler(async (req, res, next) => {
   res.status(200).json({
     success: true,
     results: unapprovedUsers.length,
-    data: sanitizeUser(unapprovedUsers),
+    data: unapprovedUsers.map(sanitizeUser),
   });
 });
 
@@ -367,7 +367,7 @@ exports.getUsersWithLands = asyncHandler(async (req, res, next) => {
   res.status(200).json({
     success: true,
     results: users.length,
-    data: sanitizeUser(users),
+    data: users.map(sanitizeUser),
   });
 });
 
@@ -380,6 +380,6 @@ exports.getAllCompanies = asyncHandler(async (req, res, next) => {
   res.status(200).json({
     success: true,
     results: companies.length,
-    data: sanitizeUser(companies),
+    data: companies.map(sanitizeUser),
   });
 });
