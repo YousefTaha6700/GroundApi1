@@ -76,6 +76,19 @@ router
     createUser
   ); // Create a new user
 
+router.get(
+  "/with-lands",
+  auth.protect,
+  auth.allowedTo("admin"),
+  getUsersWithLands
+);
+
+router.get(
+  "/unapproved",
+  auth.protect,
+  auth.allowedTo("admin"),
+  getUnapprovedCompanies
+);
 // Route to handle a single user by ID
 router
   .route("/:id")
@@ -95,19 +108,6 @@ router.get(
   auth.allowedTo("admin"),
   approveOwnerValidator,
   approveOwnerAccount
-);
-router.get(
-  "/unapproved",
-  auth.protect,
-  auth.allowedTo("admin"),
-  getUnapprovedCompanies
-);
-
-router.get(
-  "/with-lands",
-  auth.protect,
-  auth.allowedTo("admin"),
-  getUsersWithLands
 );
 
 module.exports = router;
